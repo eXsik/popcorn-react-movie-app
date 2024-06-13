@@ -11,7 +11,6 @@ import Loader from "./components/Loader";
 import ErrorMessage from "./components/ErrorMessage";
 import MovieDetails from "./components/MovieDetails";
 
-
 export default function App() {
   const [movies, setMovies] = useState([]);
   const [watched, setWatched] = useState([]);
@@ -21,21 +20,32 @@ export default function App() {
   const [selectedId, setSelectedId] = useState(null);
 
   const handleSelectMovie = (id) => {
-    setSelectedId(selectedId => id === selectedId ? null : id);
-  }
+    setSelectedId((selectedId) => (id === selectedId ? null : id));
+  };
 
   const handleCloseMovie = () => {
     setSelectedId(null);
-  }
+  };
+
+  const handleAddWatched = (movie) => {
+    setWatched((watched) => [...watched, movie]);
+  };
+
+  const handleDeleteWatched = (id) => {
+    setWatched((watched) => watched.filter((movie) => movie.imdbID !== id));
+  };
 
   useEffect(() => {
+    const controller = new AbortController();
+
     const fetchMovies = async () => {
-      console.log('test', process.env.REACT_APP_OMDB_API_KEY)
+      console.log("test", process.env.REACT_APP_OMDB_API_KEY);
       try {
         setIsLoading(true);
         setError("");
         const res = await fetch(
-          `http://www.omdbapi.com/?s=${query}&apikey=${process.env.REACT_APP_OMDB_API_KEY}`
+          `http://www.omdbapi.com/?s=${query}&apikey=${process.env.REACT_APP_OMDB_API_KEY}`,
+          { signal: controller.signal }
         );
 
         if (!res.ok)
@@ -46,9 +56,13 @@ export default function App() {
         if (data.Response === "false") throw new Error("Movie not found");
 
         setMovies(data.Search);
+        setError("");
       } catch (error) {
         console.error(error.message);
-        setError(error.message);
+
+        if(error.name !== 'AbortError') {
+          setError(error.message);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -60,7 +74,12 @@ export default function App() {
       return;
     }
 
+    handleCloseMovie();
     fetchMovies();
+
+    return function () {
+      controller.abort();
+    }
   }, [query]);
 
   return (
@@ -73,16 +92,26 @@ export default function App() {
         <Box>
           {/* {isLoading ? <Loader /> :  <MovieList movies={movies} />} */}
           {isLoading && <Loader />}
-          {!isLoading && !error && <MovieList movies={movies} onSelectMovie={handleSelectMovie} />}
+          {!isLoading && !error && (
+            <MovieList movies={movies} onSelectMovie={handleSelectMovie} />
+          )}
           {error && <ErrorMessage message={error} />}
         </Box>
         <Box>
           {selectedId ? (
-            <MovieDetails id={selectedId} onCloseMovie={handleCloseMovie} />
+            <MovieDetails
+              id={selectedId}
+              onCloseMovie={handleCloseMovie}
+              onAddWatched={handleAddWatched}
+              watched={watched}
+            />
           ) : (
             <>
               <WatchedMovieSummary watched={watched} />
-              <WatchedMovieList watched={watched} />
+              <WatchedMovieList
+                watched={watched}
+                onDeleteWatched={handleDeleteWatched}
+              />
             </>
           )}
         </Box>
